@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>ArtStation VR</title>
+  <meta name="description" content="VR gallery for ArtStation, based on A-Frame.">
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/aframe/0.3.2/aframe.min.js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+</head>
+
+<body>
+  <a-scene class="scene" fog="type: linear; color: #000000; far: 32; near: 0">
+
+    <a-sky color="#000000"></a-sky>
+
+    <a-entity light="type: ambient; color: #edddec"></a-entity>
+    <!-- <a-entity light="type: point; intensity: 0.25; distance: 50; decay: 2" position="0 8 0"></a-entity> -->
+
+    <a-assets>
+      <a-asset-item id="mdl_world" src="SM_World.dae"></a-asset-item>
+    </a-assets>
+
+    <a-camera fov="90" position="0 0 0" near="0.2" class="player">
+      <a-entity cursor="fuse: true; fuseTimeout: 4000" position="0 0 -0.5" scale="0.005 0.005 0.005" geometry="primitive: box" material="color: white; shader: flat"></a-entity>
+    </a-camera>
+
+    <a-entity collada-model="#mdl_world" class="world"></a-entity>
+
+  </a-scene>
+
+  <script>
+
+  var scene = document.querySelector('a-scene');
+  var player = document.querySelector('.player');
+
+  AFRAME.registerComponent('cursor-listener', {
+    init: function () {
+      var COLORS = ['red', 'green', 'blue'];
+      this.el.addEventListener('click', function (evt) {
+        var randomIndex = Math.floor(Math.random() * COLORS.length);
+        this.setAttribute('material', 'color', COLORS[randomIndex]);
+        // console.log('I was clicked at: ', evt.detail.intersection.point);
+
+        var position = this.components.position.data;
+
+        console.log(position);
+
+        position.y = 2;
+
+
+        player.setAttribute('position', position);
+
+      });
+    }
+  });
+
+
+  if (scene.hasLoaded) {
+    run();
+  } else {
+    scene.addEventListener('loaded', run);
+  }
+
+  var positions = [];
+  var rotations = [];
+
+  var count = 0;
+  var countMax = 0;
+
+  function run() {
+    // var world = document.querySelector('.world');
+    // var components = world.components;
+    // var colladamodel = components['collada-model'];
+
+    // console.log(world.object3D.children.length);
+
+    // var box = document.querySelector('.boxy');
+    // box.object3D.position.y = 10;
+    // box.object3D.translateZ(10);
+
+    var loader = new THREE.ColladaLoader();
+    var lastTimestamp = 0;
+    var progress = 0;
+
+    loader.load('SM_World.dae', function (collada) {
+
+      var model = collada.scene;
+      var modelChildren = model.children[1].children;
+
+      countMax = modelChildren.length;
+
+      for (var i = 0; i < modelChildren.length; i++) {
+        var modelChild = modelChildren[i];
+
+        positions.push(modelChild.position);
+        rotations.push(modelChild.rotation);
+      }
+
+      // model.children[0].children[0].material = new THREE.MeshPhongMaterial({map:THREE.ImageUtils.loadTexture('obj/images/myimage.jpg')});
+      // console.log(model);
+      // model.scale.x = model.scale.y = model.scale.z = 0.10;
+      // model.rotation.y = 0.80;
+      // scene.add( model );
+    });
+
+  }
+
+  /**
+  * Randomize array element order in-place.
+  * Using Durstenfeld shuffle algorithm.
+  */
+
+  function shuffleArray(array) {
+    for (var i = array.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var temp = array[i];
+      array[i] = array[j];
+      array[j] = temp;
+    }
+
+    return array;
+  }
+
+  $(document).ready(function() {
+
+    $.getJSON('ajax.php', function(data) {
+
+      var data = data['data'];
+
+      var items = [];
+
+      for (var i = 0; i < data.length; i++) {
+        var item = data[i];
+
+        items.push(item);
+      }
+
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+
+        var distance = i * 2;
+        var aspect = item['cover']['aspect'];
+
+        var imageScale = 1.75;
+        var imageWidth = imageScale;
+        var imageHeight = imageScale / aspect;
+
+        var positionX = positions[i].x;
+        var positionY = 2;
+        var positionZ = -positions[i].y;
+
+        var position = new THREE.Vector3(positionX, positionY, positionZ);
+
+        var rotationX = 0;
+        var rotationY = 0;
+        var rotationZ = 0;
+
+        rotationY = -rotations[i].z;
+        rotationY = rotationY * (180 / Math.PI);
+        rotationY = Math.round(rotationY);
+
+        var rotation = new THREE.Euler(rotationX, rotationY, rotationZ, 'XYZ');
+
+        var scene = document.querySelector('a-scene');
+        var frame = document.createElement('a-box');
+        var image = document.createElement('a-image');
+
+        var waypoint = document.createElement('a-box');
+
+        waypoint.setAttribute('cursor-listener', null);
+        waypoint.setAttribute('height', 0.25);
+
+        var waypointPosition = new THREE.Vector3(positionX, 0, positionZ);
+
+        waypoint.setAttribute('position', waypointPosition);
+
+        // var mesh = waypoint.getOrCreateObject3D('mesh', THREE.Mesh);
+
+        // mesh.position.set(position.x, 0, position.z);
+
+        scene.appendChild(waypoint);
+
+        // image.setAttribute('position', position);
+        // image.setAttribute('rotation', rotation);
+
+        image.setAttribute('src', item['cover']['medium_image_url']);
+        image.setAttribute('width', imageWidth);
+        image.setAttribute('height', imageHeight);
+
+        // image.object3D.position = position;
+        // image.object3D = image.object3D.translateZ(40);
+
+        // console.log(image.object3D);
+
+        var mesh = frame.getOrCreateObject3D('mesh', THREE.Mesh);
+
+        frame.setAttribute('color', '#222222');
+        frame.setAttribute('width', imageWidth + 0.2);
+        frame.setAttribute('height', imageHeight + 0.2);
+        frame.setAttribute('depth', 0.05);
+
+        mesh.position.set(position.x, position.y, position.z);
+
+        mesh.rotateY(-rotations[i].z);
+
+        mesh.translateZ(-0.95);
+
+        scene.appendChild(frame);
+
+        var mesh = image.getOrCreateObject3D('mesh', THREE.Mesh);
+
+        mesh.position.set(position.x, position.y, position.z);
+
+        // mesh.position.x = position.x;
+        // mesh.position.y = position.y;
+        // mesh.position.z = position.z;
+
+        // mesh.rotation.set(rotation.x, rotation.y,  rotation.z);
+
+        mesh.rotateY(-rotations[i].z);
+
+        // mesh.rotation.x = rotation.x;
+        // mesh.rotation.y = rotation.y;
+        // mesh.rotation.z = rotation.z;
+
+        mesh.translateZ(-0.92);
+
+        scene.appendChild(image);
+
+        count++;
+
+        if (count >= countMax) {
+          return false;
+        }
+      }
+    });
+  });
+
+  </script>
+
+</body>
+</html>
