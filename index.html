@@ -6,7 +6,7 @@
   <title>ArtStation VR</title>
   <meta name="description" content="VR gallery for ArtStation, based on A-Frame.">
   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/aframe/0.3.2/aframe.min.js"></script>
-  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+  <script type="text/javascript" src="https://rawgit.com/bryik/aframe-bmfont-text-component/master/dist/aframe-bmfont-text-component.min.js"></script>
 </head>
 
 <body>
@@ -23,6 +23,7 @@
     </a-camera>
 
     <a-entity collada-model="#mdl_world" class="world"></a-entity>
+    <a-entity bmfont-text="text: Hello world" class="text"></a-entity>
 
   </a-scene>
 
@@ -30,6 +31,7 @@
 
   var scene = document.querySelector('a-scene');
   var player = document.querySelector('.player');
+  var text = document.querySelector('.text');
 
   scene.addEventListener('loaded', initializeScene);
 
@@ -37,11 +39,14 @@
   var countMax = 0;
 
   AFRAME.registerComponent('cursor-listener', {
+    schema: {
+      type: 'array', default: null
+    },
     init: function() {
       this.el.addEventListener('click', function (evt) {
-        this.setAttribute('material', 'color', '0xffff00');
-
         var mesh = this.getObject3D('mesh');
+
+        console.log(this.components['cursor-listener'].attrValue);
 
         var texture = new THREE.TextureLoader().load('walk.png');
         texture.minFilter = THREE.LinearFilter;
@@ -53,10 +58,17 @@
         var position = mesh.position;
         var tempPosition = new THREE.Vector3(position.x, position.y + 2, position.z);
 
+        text.setAttribute('position', tempPosition);
+
         player.setAttribute('position', tempPosition);
       });
     }
   });
+
+  function render() {
+    console.log('eeee');
+    requestAnimationFrame(render);
+  }
 
   function initializeScene() {
 
@@ -66,7 +78,6 @@
     var loader = new THREE.ColladaLoader();
 
     loader.load('SM_World.dae', function (collada) {
-
       var model = collada.scene;
       var modelChildren = model.children[1].children;
 
@@ -83,42 +94,77 @@
       }
     });
 
-    $.getJSON('ajax.php', function(data) {
-      var items = data['data'];
+    loader.load('SM_ArtStation.dae', function (collada) {
+      var model = collada.scene;
+      var object3D = model.children[0];
 
-      for (var i = 0; i < items.length; i++) {
-        var item = items[i];
-        var node = nodes[i];
+      var el = document.createElement('a-entity');
 
-        var imageScale = 1.75;
-        var imageAspect = item['cover']['aspect'];
+      object3D.translateY(2);
+      object3D.rotateX((Math.PI / 2) * 3);
 
-        var imageWidth = imageScale;
-        var imageHeight = imageScale / imageAspect;
+      var material = new THREE.MeshPhongMaterial({color: 0x0099ff, emissive: 0x0099ff});
+      object3D.children[0].material = material;
 
-        var position = new THREE.Vector3(node.position.x, node.position.z, -node.position.y);
-        var rotation = new THREE.Euler(node.rotation.x, -node.rotation.z, node.rotation.z, 'XYZ');
+      console.log(object3D);
 
-        createWaypoint(scene, item, position, rotation);
-
-        position.y = position.y + 2;
-
-        createFrame(scene, item, imageWidth, imageHeight, position, rotation);
-        // createPainting(scene, item, imageWidth, imageHeight, position, rotation);
-        createPaintingThree(scene, item, imageWidth, imageHeight, position, rotation);
-
-        if (i >= countMax - 1) {
-          return false;
-        }
-      }
+      el.setObject3D('object3D', object3D);
+      scene.appendChild(el);
     });
 
+    var requestURL = 'server/feed.php';
+    var request = new XMLHttpRequest();
+    request.open('GET', requestURL, true);
+
+    request.onload = function() {
+      if (request.status >= 200 && request.status < 400) {
+        var data = JSON.parse(request.responseText);
+
+        var items = data['data'];
+
+        for (var i = 0; i < items.length; i++) {
+          var item = items[i];
+          var node = nodes[i];
+
+          var imageScale = 1.5;
+          var imageAspect = item['cover']['aspect'];
+
+          var imageWidth = imageScale;
+          var imageHeight = imageScale / imageAspect;
+
+          if (imageAspect > 1) {
+            imageWidth = imageScale * imageAspect;
+            imageHeight = imageScale;
+          }
+
+          var position = new THREE.Vector3(node.position.x, node.position.z, -node.position.y);
+          var rotation = new THREE.Euler(node.rotation.x, -node.rotation.z, node.rotation.z, 'XYZ');
+
+          createWaypoint(scene, item, position, rotation);
+
+          position.y = position.y + 2;
+
+          createFrame(scene, item, imageWidth, imageHeight, position, rotation);
+          createPaintingThree(scene, item, imageWidth, imageHeight, position, rotation);
+
+          if (i >= countMax - 1) {
+            return false;
+          }
+        }
+      } else {
+        // We reached our target server, but it returned an error
+      }
+    };
+
+    request.onerror = function() {
+      // There was a connection error of some sort
+    };
+
+    request.send();
   }
 
-  /**
-  * Randomize array element order in-place.
-  * Using Durstenfeld shuffle algorithm.
-  */
+  // Randomize array element order in-place
+  // Using Durstenfeld shuffle algorithm
 
   function shuffleArray(array) {
     for (var i = array.length - 1; i > 0; i--) {
@@ -134,12 +180,12 @@
   function createWaypoint(scene, item, position, rotation) {
     var el = document.createElement('a-entity');
 
-    el.setAttribute('cursor-listener', null);
+    el.setAttribute('cursor-listener', item);
 
     var texture = new THREE.TextureLoader().load('walk.png');
     texture.minFilter = THREE.LinearFilter;
 
-    var geometry = new THREE.CircleGeometry(0.5, 16);
+    var geometry = new THREE.CircleGeometry(0.75, 8);
     var material = new THREE.MeshBasicMaterial({color: 0xffffff, map: texture, side: THREE.FrontSide});
     var mesh = new THREE.Mesh(geometry, material);
 
@@ -154,17 +200,13 @@
   }
 
   function createFrame(scene, item, imageWidth, imageHeight, position, rotation) {
-    var el = document.createElement('a-box');
-
-    el.setAttribute('material', 'color', '#222222');
-
-    var mesh = el.getOrCreateObject3D('mesh', THREE.Mesh);
+    var el = document.createElement('a-entity');
 
     var frameSize = 0.35;
 
-    mesh.scale.x = imageWidth + frameSize;
-    mesh.scale.y = imageHeight + frameSize;
-    mesh.scale.z = 0.05;
+    var geometry = new THREE.BoxGeometry(imageWidth + frameSize, imageHeight + frameSize, 0.05);
+    var material = new THREE.MeshBasicMaterial({color: 0x222222, side: THREE.FrontSide});
+    var mesh = new THREE.Mesh(geometry, material);
 
     mesh.position.set(position.x, position.y, position.z);
 
