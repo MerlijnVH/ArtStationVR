@@ -12,7 +12,7 @@
 <body>
   <a-scene stats class="scene" fog="type: linear; color: #ffffff; far: 32; near: 0">
 
-    <a-entity light="type: ambient; color: #edddec"></a-entity>
+    <a-entity light="type: ambient; color: #ffffff"></a-entity>
 
     <a-assets>
       <a-asset-item id="mdl_world" src="SM_World.dae"></a-asset-item>
@@ -31,34 +31,37 @@
   var scene = document.querySelector('a-scene');
   var player = document.querySelector('.player');
 
+  scene.addEventListener('loaded', initializeScene);
+
+  var nodes = [];
+  var countMax = 0;
+
   AFRAME.registerComponent('cursor-listener', {
     init: function() {
-      var COLORS = ['red', 'green', 'blue'];
       this.el.addEventListener('click', function (evt) {
-        var randomIndex = Math.floor(Math.random() * COLORS.length);
-        this.setAttribute('material', 'color', COLORS[randomIndex]);
+        this.setAttribute('material', 'color', '0xffff00');
 
-        // console.log(this.object3D);
+        var mesh = this.getObject3D('mesh');
 
-        var position = this.getObject3D('mesh').position;
-        position.y = 2;
+        var texture = new THREE.TextureLoader().load('walk.png');
+        texture.minFilter = THREE.LinearFilter;
 
-        player.setAttribute('position', position);
+        var material = new THREE.MeshBasicMaterial({color: 0x707070, map: texture, side: THREE.FrontSide});
+
+        mesh.material = material;
+
+        var position = mesh.position;
+        var tempPosition = new THREE.Vector3(position.x, position.y + 2, position.z);
+
+        player.setAttribute('position', tempPosition);
       });
     }
   });
 
-  if (scene.hasLoaded) {
-    run();
-  } else {
-    scene.addEventListener('loaded', run);
-  }
+  function initializeScene() {
 
-  var nodes = [];
-
-  var countMax = 0;
-
-  function run() {
+    var startPosition = new THREE.Vector3(0, 2, 0);
+    player.setAttribute('position', startPosition);
 
     var loader = new THREE.ColladaLoader();
 
@@ -129,18 +132,22 @@
   }
 
   function createWaypoint(scene, item, position, rotation) {
-    var el = document.createElement('a-box');
+    var el = document.createElement('a-entity');
 
     el.setAttribute('cursor-listener', null);
 
-    var mesh = el.getOrCreateObject3D('mesh', THREE.Mesh);
+    var texture = new THREE.TextureLoader().load('walk.png');
+    texture.minFilter = THREE.LinearFilter;
 
-    mesh.position.set(position.x, position.y, position.z);
+    var geometry = new THREE.CircleGeometry(0.5, 16);
+    var material = new THREE.MeshBasicMaterial({color: 0xffffff, map: texture, side: THREE.FrontSide});
+    var mesh = new THREE.Mesh(geometry, material);
+
+    mesh.position.set(position.x, position.y + 0.0025, position.z);
 
     mesh.rotateY(rotation.y);
-    mesh.translateZ(0.75);
-
-    mesh.scale.y = 0.25;
+    mesh.rotateX(-(Math.PI / 2));
+    mesh.translateY(-0.75);
 
     el.setObject3D('mesh', mesh);
     scene.appendChild(el);
@@ -203,7 +210,6 @@
     mesh.translateZ(-0.92);
 
     el.setObject3D('mesh', mesh);
-
     scene.appendChild(el);
   }
 
