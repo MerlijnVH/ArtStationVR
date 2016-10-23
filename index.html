@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <title>ArtStation VR</title>
   <meta name="description" content="VR gallery for ArtStation, based on A-Frame.">
-  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/aframe/0.3.2/aframe.min.js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/aframe/0.3.0/aframe.min.js"></script>
 </head>
 
 <body>
@@ -52,7 +52,7 @@
       });
     },
     tick: function() {
-      var speed = 0.005;
+      var speed = 0.015;
       var object3D = this.el.object3D;
 
       if (this.data.isActive) {
@@ -137,37 +137,11 @@
         var rotation = new THREE.Euler(waypoint.rotation.x, waypoint.rotation.z, waypoint.rotation.y, 'XYZ');
 
         createWaypoint(scene, waypoint, position, rotation);
+        createWaypointBlob(scene, waypoint, position, rotation);
       }
     });
 
-    loader.load('assets/models/SM_ArtStation.dae', function (collada) {
-      var model = collada.scene;
-      var object3D = model.children[0];
-
-      var el = document.createElement('a-entity');
-
-      el.setAttribute('position', new THREE.Vector3(0, 2.5, -20))
-      el.setAttribute('logo', null);
-
-      object3D.rotateX(Math.radians(270));
-
-      var texture = new THREE.TextureLoader().load('assets/models/T_ArtStation.png');
-
-      var material = new THREE.MeshPhongMaterial({
-        color: 0xffa600,
-        specular: 0xffffff,
-        shininess: 15,
-        emissive: 0xffa600,
-        emissiveIntensity: 0.5,
-        map: texture,
-        shading: THREE.SmoothShading
-      });
-
-      object3D.children[0].material = material;
-
-      el.setObject3D('object3D', object3D);
-      scene.appendChild(el);
-    });
+    createLogo();
 
     var requestURL = 'server/feed.php';
     var request = new XMLHttpRequest();
@@ -255,12 +229,45 @@
     return radians * 180 / Math.PI;
   };
 
+  function createLogo() {
+    var loader = new THREE.ColladaLoader();
+
+    loader.load('assets/models/SM_ArtStation.dae', function (collada) {
+      var model = collada.scene;
+      var object3D = model.children[0];
+
+      var el = document.createElement('a-entity');
+
+      el.setAttribute('position', new THREE.Vector3(0, 2.5, -20))
+      el.setAttribute('logo', null);
+
+      object3D.rotateX(Math.radians(270));
+
+      var texture = new THREE.TextureLoader().load('assets/models/T_ArtStation.png');
+
+      var material = new THREE.MeshPhongMaterial({
+        color: 0xffa600,
+        specular: 0xffffff,
+        shininess: 15,
+        emissive: 0xffa600,
+        emissiveIntensity: 0.5,
+        map: texture,
+        shading: THREE.SmoothShading
+      });
+
+      object3D.children[0].material = material;
+
+      el.setObject3D('object3D', object3D);
+      scene.appendChild(el);
+    });
+  }
+
   function createWaypointBlob(scene, item, position, rotation) {
     var el = document.createElement('a-entity');
 
     var texture = new THREE.TextureLoader().load('assets/textures/T_Blob.png');
 
-    var geometry = new THREE.PlaneGeometry(2, 2, 1);
+    var geometry = new THREE.PlaneGeometry(2.5, 2.5, 1);
     var material = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       map: texture,
@@ -280,8 +287,6 @@
   }
 
   function createWaypoint(scene, item, position, rotation) {
-    createWaypointBlob(scene, item, position, rotation);
-
     var el = document.createElement('a-entity');
 
     el.setAttribute('waypoint', null);
@@ -289,7 +294,7 @@
     var texture = new THREE.TextureLoader().load('assets/models/T_Waypoint.jpg');
     texture.minFilter = THREE.LinearFilter;
 
-    var geometry = new THREE.CircleGeometry(0.5, 16);
+    var geometry = new THREE.CircleGeometry(0.75, 16);
     var material = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       map: texture,
@@ -314,7 +319,7 @@
     var frameSize = 0.35;
 
     var geometry = new THREE.BoxGeometry(imageWidth + frameSize, imageHeight + frameSize, 0.05);
-    var material = new THREE.MeshStandardMaterial({color: 0x101010, side: THREE.FrontSide});
+    var material = new THREE.MeshBasicMaterial({color: 0x101010, side: THREE.FrontSide});
     var mesh = new THREE.Mesh(geometry, material);
 
     mesh.position.set(position.x, position.y, position.z);
