@@ -6,24 +6,23 @@
   <title>ArtStation VR</title>
   <meta name="description" content="VR gallery for ArtStation, based on A-Frame.">
   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/aframe/0.3.2/aframe.min.js"></script>
-  <script type="text/javascript" src="https://rawgit.com/bryik/aframe-bmfont-text-component/master/dist/aframe-bmfont-text-component.min.js"></script>
 </head>
 
 <body>
-  <a-scene stats class="scene" fog="type: linear; color: #ffffff; far: 32; near: 0">
+  <a-scene stats antialias="true" fog="type: linear; color: #ffffff; far: 32; near: 16" class="scene">
 
     <a-entity light="type: ambient; color: #ffffff"></a-entity>
 
     <a-assets>
-      <a-asset-item id="mdl_world" src="SM_World.dae"></a-asset-item>
+      <a-asset-item id="mdl_world" src="assets/models/SM_World.dae"></a-asset-item>
     </a-assets>
 
     <a-camera fov="90" position="0 0 0" near="0.2" class="player">
       <a-entity cursor="fuse: true; fuseTimeout: 4000" position="0 0 -0.5" scale="0.005 0.005 0.005" geometry="primitive: box" material="color: white; shader: flat"></a-entity>
+      <a-entity light="type: point; color: #ffffff; intensity: 0.5; distance: 6" position="0 2 0"></a-entity>
     </a-camera>
 
     <a-entity collada-model="#mdl_world" class="world"></a-entity>
-    <a-entity bmfont-text="text: Hello world" class="text"></a-entity>
 
   </a-scene>
 
@@ -31,53 +30,79 @@
 
   var scene = document.querySelector('a-scene');
   var player = document.querySelector('.player');
-  var text = document.querySelector('.text');
 
   scene.addEventListener('loaded', initializeScene);
 
   var nodes = [];
   var countMax = 0;
 
-  AFRAME.registerComponent('cursor-listener', {
+  var waypoints = [];
+
+  AFRAME.registerComponent('waypoint', {
     schema: {
-      type: 'array', default: null
+      isActive: { type: 'boolean', default: false }
     },
     init: function() {
-      this.el.addEventListener('click', function (evt) {
-        var mesh = this.getObject3D('mesh');
-
-        console.log(this.components['cursor-listener'].attrValue);
-
-        var texture = new THREE.TextureLoader().load('walk.png');
-        texture.minFilter = THREE.LinearFilter;
-
-        var material = new THREE.MeshBasicMaterial({color: 0x707070, map: texture, side: THREE.FrontSide});
-
-        mesh.material = material;
-
-        var position = mesh.position;
-        var tempPosition = new THREE.Vector3(position.x, position.y + 2, position.z);
-
-        text.setAttribute('position', tempPosition);
-
-        player.setAttribute('position', tempPosition);
+      this.el.addEventListener('raycaster-intersected', function (evt) {
+        this.components['waypoint'].data.isActive = true;
       });
+
+      this.el.addEventListener('raycaster-intersected-cleared', function (evt) {
+        this.components['waypoint'].data.isActive = false;
+      });
+    },
+    tick: function() {
+      var speed = 0.005;
+      var object3D = this.el.object3D;
+
+      if (this.data.isActive) {
+        if (object3D.scale.x < 1.5) {
+          object3D.scale.x += speed;
+          object3D.scale.z += speed;
+        } else {
+          var mesh = this.el.getObject3D('mesh');
+
+          var color = new THREE.Color(0.5, 0.5, 0.5);
+          mesh.material.color = color;
+
+          var position = this.el.components['position'].data;
+          var tempPosition = new THREE.Vector3(position.x, position.y + 2, position.z);
+
+          player.setAttribute('position', tempPosition);
+        }
+      } else {
+        if (object3D.scale.x > 1) {
+          object3D.scale.x -= speed;
+          object3D.scale.z -= speed;
+        }
+      }
     }
   });
 
-  function render() {
-    console.log('eeee');
-    requestAnimationFrame(render);
-  }
+  AFRAME.registerComponent('logo', {
+    schema: {
+      speed: { type: 'float', default: 1.0 }
+    },
+    init: function () {
+
+    },
+    tick: function() {
+      var object3D = this.el.object3D;
+
+      var speedScale = 0.005;
+      var speed = this.data.speed * speedScale;
+
+      object3D.rotation.y += speed;
+    }
+  });
 
   function initializeScene() {
-
     var startPosition = new THREE.Vector3(0, 2, 0);
     player.setAttribute('position', startPosition);
 
     var loader = new THREE.ColladaLoader();
 
-    loader.load('SM_World.dae', function (collada) {
+    loader.load('assets/models/SM_World.dae', function (collada) {
       var model = collada.scene;
       var modelChildren = model.children[1].children;
 
@@ -92,21 +117,53 @@
 
         nodes.push(node);
       }
+
+      var modelChildren = model.children[4].children;
+
+      for (var i = 0; i < modelChildren.length; i++) {
+        var modelChild = modelChildren[i];
+
+        var waypoint = {};
+        waypoint.position = modelChild.position;
+        waypoint.rotation = modelChild.rotation;
+
+        waypoints.push(waypoint);
+      }
+
+      for (var i = 0; i < waypoints.length; i++) {
+        var waypoint = waypoints[i];
+
+        var position = new THREE.Vector3(waypoint.position.x, waypoint.position.z, -waypoint.position.y);
+        var rotation = new THREE.Euler(waypoint.rotation.x, waypoint.rotation.z, waypoint.rotation.y, 'XYZ');
+
+        createWaypoint(scene, waypoint, position, rotation);
+      }
     });
 
-    loader.load('SM_ArtStation.dae', function (collada) {
+    loader.load('assets/models/SM_ArtStation.dae', function (collada) {
       var model = collada.scene;
       var object3D = model.children[0];
 
       var el = document.createElement('a-entity');
 
-      object3D.translateY(2);
-      object3D.rotateX((Math.PI / 2) * 3);
+      el.setAttribute('position', new THREE.Vector3(0, 2.5, -20))
+      el.setAttribute('logo', null);
 
-      var material = new THREE.MeshPhongMaterial({color: 0x0099ff, emissive: 0x0099ff});
+      object3D.rotateX(Math.radians(270));
+
+      var texture = new THREE.TextureLoader().load('assets/models/T_ArtStation.png');
+
+      var material = new THREE.MeshPhongMaterial({
+        color: 0xffa600,
+        specular: 0xffffff,
+        shininess: 15,
+        emissive: 0xffa600,
+        emissiveIntensity: 0.5,
+        map: texture,
+        shading: THREE.SmoothShading
+      });
+
       object3D.children[0].material = material;
-
-      console.log(object3D);
 
       el.setObject3D('object3D', object3D);
       scene.appendChild(el);
@@ -122,12 +179,23 @@
 
         var items = data['data'];
 
+        var imageAspectMin = 0.65;
+        var imageAspectMax = 2.35;
+
         for (var i = 0; i < items.length; i++) {
           var item = items[i];
           var node = nodes[i];
 
-          var imageScale = 1.5;
+          var imageScale = 2;
           var imageAspect = item['cover']['aspect'];
+
+          if (imageAspect < imageAspectMin) {
+            imageAspect = imageAspectMin;
+          }
+
+          if (imageAspect > imageAspectMax) {
+            imageAspect = imageAspectMax;
+          }
 
           var imageWidth = imageScale;
           var imageHeight = imageScale / imageAspect;
@@ -140,12 +208,10 @@
           var position = new THREE.Vector3(node.position.x, node.position.z, -node.position.y);
           var rotation = new THREE.Euler(node.rotation.x, -node.rotation.z, node.rotation.z, 'XYZ');
 
-          createWaypoint(scene, item, position, rotation);
-
           position.y = position.y + 2;
 
           createFrame(scene, item, imageWidth, imageHeight, position, rotation);
-          createPaintingThree(scene, item, imageWidth, imageHeight, position, rotation);
+          createPainting(scene, item, imageWidth, imageHeight, position, rotation);
 
           if (i >= countMax - 1) {
             return false;
@@ -177,23 +243,66 @@
     return array;
   }
 
-  function createWaypoint(scene, item, position, rotation) {
+  // Convert from degrees to radians
+
+  Math.radians = function(degrees) {
+    return degrees * Math.PI / 180;
+  };
+
+  // Convert from radians to degrees
+
+  Math.degrees = function(radians) {
+    return radians * 180 / Math.PI;
+  };
+
+  function createWaypointBlob(scene, item, position, rotation) {
     var el = document.createElement('a-entity');
 
-    el.setAttribute('cursor-listener', item);
+    var texture = new THREE.TextureLoader().load('assets/textures/T_Blob.png');
 
-    var texture = new THREE.TextureLoader().load('walk.png');
-    texture.minFilter = THREE.LinearFilter;
-
-    var geometry = new THREE.CircleGeometry(0.75, 8);
-    var material = new THREE.MeshBasicMaterial({color: 0xffffff, map: texture, side: THREE.FrontSide});
+    var geometry = new THREE.PlaneGeometry(2, 2, 1);
+    var material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      map: texture,
+      side: THREE.FrontSide
+    });
+    material.transparent = true;
     var mesh = new THREE.Mesh(geometry, material);
 
-    mesh.position.set(position.x, position.y + 0.0025, position.z);
+    mesh.rotateX(Math.radians(-90));
+
+    var position = new THREE.Vector3(position.x, position.y + 0.0015, position.z);
+
+    el.setAttribute('position', position);
+
+    el.setObject3D('mesh', mesh);
+    scene.appendChild(el);
+  }
+
+  function createWaypoint(scene, item, position, rotation) {
+    createWaypointBlob(scene, item, position, rotation);
+
+    var el = document.createElement('a-entity');
+
+    el.setAttribute('waypoint', null);
+
+    var texture = new THREE.TextureLoader().load('assets/models/T_Waypoint.jpg');
+    texture.minFilter = THREE.LinearFilter;
+
+    var geometry = new THREE.CircleGeometry(0.5, 16);
+    var material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      map: texture,
+      side: THREE.FrontSide
+    });
+    var mesh = new THREE.Mesh(geometry, material);
+
+    var position = new THREE.Vector3(position.x, position.y + 0.0025, position.z);
 
     mesh.rotateY(rotation.y);
-    mesh.rotateX(-(Math.PI / 2));
-    mesh.translateY(-0.75);
+    mesh.rotateX(Math.radians(-90));
+
+    el.setAttribute('position', position);
 
     el.setObject3D('mesh', mesh);
     scene.appendChild(el);
@@ -205,7 +314,7 @@
     var frameSize = 0.35;
 
     var geometry = new THREE.BoxGeometry(imageWidth + frameSize, imageHeight + frameSize, 0.05);
-    var material = new THREE.MeshBasicMaterial({color: 0x222222, side: THREE.FrontSide});
+    var material = new THREE.MeshStandardMaterial({color: 0x101010, side: THREE.FrontSide});
     var mesh = new THREE.Mesh(geometry, material);
 
     mesh.position.set(position.x, position.y, position.z);
@@ -218,32 +327,19 @@
   }
 
   function createPainting(scene, item, imageWidth, imageHeight, position, rotation) {
-    var el = document.createElement('a-image');
-
-    el.setAttribute('src', item['cover']['medium_image_url']);
-
-    var mesh = el.getOrCreateObject3D('mesh', THREE.Mesh);
-
-    mesh.scale.x = imageWidth;
-    mesh.scale.y = imageHeight;
-
-    mesh.position.set(position.x, position.y, position.z);
-
-    mesh.rotateY(rotation.y);
-    mesh.translateZ(-0.92);
-
-    el.setObject3D('mesh', mesh);
-    scene.appendChild(el);
-  }
-
-  function createPaintingThree(scene, item, imageWidth, imageHeight, position, rotation) {
     var el = document.createElement('a-entity');
 
     var texture = new THREE.TextureLoader().load(item['cover']['medium_image_url']);
     texture.minFilter = THREE.LinearFilter;
 
     var geometry = new THREE.PlaneGeometry(imageWidth, imageHeight, 1);
-    var material = new THREE.MeshBasicMaterial({color: 0xffffff, map: texture, side: THREE.FrontSide});
+    var material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.5,
+      metalness: 0.25,
+      map: texture,
+      side: THREE.FrontSide
+    });
     var mesh = new THREE.Mesh(geometry, material);
 
     mesh.position.set(position.x, position.y, position.z);
